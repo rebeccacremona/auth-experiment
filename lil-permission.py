@@ -19,13 +19,8 @@ def login_required(func):
     @wraps(func)
     def handle_login(*args, **kwargs):
         logged_in = session.get('logged_in')
-        if logged_in:
-            if logged_in == "yes":
-                return func(*args, **kwargs)
-            else:
-                # This means the cookie has been spoofed so successfully that
-                # Flask hasn't rejected it......
-                abort(400)
+        if logged_in and logged_in == "yes":
+            return func(*args, **kwargs)
         else:
             print "Redirecting to GitHub"
             session['next'] = request.url

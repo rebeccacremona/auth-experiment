@@ -1,8 +1,10 @@
 from os import environ
-
-from flask import Flask, request, redirect, session, abort
 import requests
 from functools import wraps
+from urlparse import urlparse, urljoin
+
+from flask import Flask, request, redirect, session, abort
+
 
 app = Flask(__name__)
 app.config['GITHUB_CLIENT_ID'] = environ.get('GITHUB_CLIENT_ID')
@@ -26,6 +28,12 @@ def login_required(func):
             session['next'] = request.url
             return redirect('{}?scope=user&client_id={}'.format(AUTHORIZE_URL, app.config['GITHUB_CLIENT_ID']))
     return handle_login
+
+def is_safe_url(target):
+    ref_url = urlparse(request.host_url)
+    test_url = urlparse(urljoin(request.host_url, target))
+    return test_url.scheme in ('http', 'https') and \
+           ref_url.netloc == test_url.netloc
 
 @app.route('/')
 @login_required
@@ -61,13 +69,13 @@ def authorized():
         data = r.json()
         if r.status_code == 200:
             if data and any(org['login'] == app.config['GITHUB_ORG_NAME'] for org in data):
+                # safe redirect ala http://flask.pocoo.org/snippets/63/
                 next = session.get('next')
                 session.clear()
                 session['logged_in'] = "yes"
-                # We'll want to secure this redirect as per
-                # http://flask.pocoo.org/snippets/62/
-                # or better
-                return redirect(next)
+                if next and is_safe_url(next):
+                    return redirect(next)
+                return redirect('/')
             else:
                 print("Not a member of LIL.")
                 abort(403)

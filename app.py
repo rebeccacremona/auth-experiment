@@ -122,7 +122,3 @@ def authorized():
     else:
         app.logger.warning("Insufficient scope authorized in Github; verify API hasn't changed.")
         abort(403)
-
-if __name__ == '__main__':
-    port = int(environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)

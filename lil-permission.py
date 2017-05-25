@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from flask import Flask, request, redirect, session, abort, url_for
 
+import logging
 
 app = Flask(__name__)
 app.config['GITHUB_CLIENT_ID'] = environ.get('GITHUB_CLIENT_ID')
@@ -14,6 +15,7 @@ app.config['GITHUB_ORG_NAME'] = environ.get('GITHUB_ORG_NAME')
 app.config['SECRET_KEY'] = environ.get('FLASK_SECRET_KEY')
 app.config['SESSION_COOKIE_SECURE'] = environ.get('SESSION_COOKIE_SECURE', False)
 app.config['LOGIN_EXPIRY_MINUTES'] = environ.get('LOGIN_EXPIRY', 30)
+app.config['LOG_LEVEL'] = environ.get('LOG_LEVEL', 'WARNING')
 
 AUTHORIZE_URL = 'https://github.com/login/oauth/authorize'
 ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token'
@@ -23,6 +25,13 @@ REVOKE_TOKEN_URL = 'https://api.github.com/applications/{}/tokens/'.format(app.c
 ###
 ### UTILS ###
 ###
+
+@app.before_first_request
+def setup_logging():
+    if not app.debug:
+        # In production mode, add log handler to sys.stderr.
+        app.logger.addHandler(logging.StreamHandler())
+        app.logger.setLevel(getattr(logging, app.config['LOG_LEVEL']))
 
 def login_required(func):
     @wraps(func)
@@ -34,9 +43,10 @@ def login_required(func):
         else:
             valid = False
         if logged_in and logged_in == "yes" and valid:
+            app.logger.debug("User session valid")
             return func(*args, **kwargs)
         else:
-            print "Redirecting to GitHub"
+            app.logger.debug("Redirecting to GitHub")
             session['next'] = request.url
             return redirect('{}?scope=user&client_id={}'.format(AUTHORIZE_URL, app.config['GITHUB_CLIENT_ID']))
     return handle_login
@@ -68,7 +78,7 @@ def logout():
 
 @app.route('/auth/github/callback')
 def authorized():
-    print "Requesting Access Token"
+    app.logger.debug("Requesting Access Token")
     r = requests.post(ACCESS_TOKEN_URL, headers={'accept': 'application/json'},
                                         data={'client_id': app.config['GITHUB_CLIENT_ID'],
                                               'client_secret': app.config['GITHUB_CLIENT_SECRET'],
@@ -77,20 +87,20 @@ def authorized():
     if r.status_code == 200:
         access_token = data.get('access_token')
         scope = data.get('scope')
-        print "Received Access Token"
+        app.logger.debug("Received Access Token")
     else:
-        print("Failed attempt. Gitub says {}".format(data['message']))
+        app.logger.error("Failed request for access token. Gitub says {}".format(data['message']))
         abort(500)
 
     if scope == 'user':
-        print 'Requesting User Organization Info'
+        app.logger.debug("Requesting User Organization Info")
         r = requests.get(ORGS_URL, headers={'accept': 'application/json',
                                             'authorization': 'token {}'.format(access_token)})
 
-        print 'Revoking Github Access Token'
+        app.logger.debug("Revoking Github Access Token")
         # https://developer.github.com/v3/oauth_authorizations/#revoke-an-authorization-for-an-application
         d = requests.delete(REVOKE_TOKEN_URL + access_token, auth=(app.config['GITHUB_CLIENT_ID'], app.config['GITHUB_CLIENT_SECRET']))
-        print '(Request returned {})'.format(d.status_code)
+        app.logger.debug("(Request returned {})".format(d.status_code))
 
         data = r.json()
         if r.status_code == 200:
@@ -104,13 +114,13 @@ def authorized():
                     return redirect(next)
                 return redirect(url_for('hello_world'))
             else:
-                print("Not a member of LIL.")
+                app.logger.warning("Log in attempt from Github user who is not a member of LIL.")
                 abort(403)
         else:
-            print("Failed attempt. Gitub says {}".format(data['message']))
+            app.logger.error("Failed request for user orgs. Gitub says {}".format(data['message']))
             abort(500)
     else:
-        print("Insufficient scope authorized in Github")
+        app.logger.warning("Insufficient scope authorized in Github; verify API hasn't changed.")
         abort(403)
 
 if __name__ == '__main__':

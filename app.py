@@ -4,7 +4,8 @@ from functools import wraps
 from urlparse import urlparse, urljoin
 from datetime import datetime, timedelta
 
-from flask import Flask, request, redirect, session, abort, url_for
+from flask import Flask, request, redirect, session, abort, url_for, render_template
+import error_handling
 
 import logging
 
@@ -16,6 +17,9 @@ app.config['SECRET_KEY'] = environ.get('FLASK_SECRET_KEY')
 app.config['SESSION_COOKIE_SECURE'] = environ.get('SESSION_COOKIE_SECURE', True)
 app.config['LOGIN_EXPIRY_MINUTES'] = environ.get('LOGIN_EXPIRY', 30)
 app.config['LOG_LEVEL'] = environ.get('LOG_LEVEL', 'WARNING')
+
+# register error handlers
+error_handling.init_app(app)
 
 AUTHORIZE_URL = 'https://github.com/login/oauth/authorize'
 ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token'
@@ -68,13 +72,18 @@ def is_safe_url(target):
 @app.route('/')
 @login_required
 def hello_world():
-    return "Authenticated!"
+    return render_template('generic.html', myvars={'heading': 'Hello World!',
+                                                   'message': 'You have successfully been authenticated.'})
+
+@app.route('/login')
+def login():
+    return render_template('login.html', myvars={'heading': 'Log In'})
 
 @app.route("/logout")
-@login_required
 def logout():
     session.clear()
-    return "Logged out!"
+    return render_template('generic.html', myvars={'heading': 'Logged Out',
+                                                   'message': 'You have successfully been logged out.'})
 
 @app.route('/auth/github/callback')
 def authorized():
@@ -115,10 +124,10 @@ def authorized():
                 return redirect(url_for('hello_world'))
             else:
                 app.logger.warning("Log in attempt from Github user who is not a member of LIL.")
-                abort(403)
+                abort(401)
         else:
             app.logger.error("Failed request for user orgs. Gitub says {}".format(data['message']))
             abort(500)
     else:
         app.logger.warning("Insufficient scope authorized in Github; verify API hasn't changed.")
-        abort(403)
+        abort(401)

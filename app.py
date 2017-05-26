@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from flask import Flask, request, redirect, session, abort, url_for, render_template
 import error_handling
+from proxy import proxy_request
 
 import logging
 
@@ -69,21 +70,40 @@ def is_safe_url(target):
 ### ROUTES
 ###
 
-@app.route('/')
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
 @login_required
-def hello_world():
-    return render_template('generic.html', myvars={'heading': 'Hello World!',
-                                                   'message': 'You have successfully been authenticated.'})
+def catch_all(path):
+    '''
+        All requests are caught by this route, unless explicitly caught by
+        other patterns, more specific patterns.
+        http://flask.pocoo.org/docs/0.12/design/#the-routing-system
+    '''
+    def fallback():
+        return render_template('generic.html', context={'heading': "lil-permission",
+                                                        'message': "an authentication proxy app"})
+
+    try:
+        proxied_response = proxy_request(request, path)
+        if proxied_response:
+            return proxied_response
+        else:
+            app.logger.warning("No response returned by proxy.")
+            return fallback()
+    except NameError:
+        app.logger.warning("No proxy function available.")
+        return fallback()
+
 
 @app.route('/login')
 def login():
-    return render_template('login.html', myvars={'heading': 'Log In'})
+    return render_template('login.html', context={'heading': 'Log In', 'client_id': app.config['GITHUB_CLIENT_ID']})
 
 @app.route("/logout")
 def logout():
     session.clear()
-    return render_template('generic.html', myvars={'heading': 'Logged Out',
-                                                   'message': 'You have successfully been logged out.'})
+    return render_template('generic.html', context={'heading': "Logged Out",
+                                                    'message': "You have successfully been logged out."})
 
 @app.route('/auth/github/callback')
 def authorized():
@@ -107,7 +127,6 @@ def authorized():
                                             'authorization': 'token {}'.format(access_token)})
 
         app.logger.debug("Revoking Github Access Token")
-        # https://developer.github.com/v3/oauth_authorizations/#revoke-an-authorization-for-an-application
         d = requests.delete(REVOKE_TOKEN_URL + access_token, auth=(app.config['GITHUB_CLIENT_ID'], app.config['GITHUB_CLIENT_SECRET']))
         app.logger.debug("(Request returned {})".format(d.status_code))
 
@@ -121,7 +140,7 @@ def authorized():
                 session['logged_in'] = "yes"
                 if next and is_safe_url(next):
                     return redirect(next)
-                return redirect(url_for('hello_world'))
+                return redirect(url_for('catch_all'))
             else:
                 app.logger.warning("Log in attempt from Github user who is not a member of LIL.")
                 abort(401)

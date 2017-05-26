@@ -21,12 +21,11 @@ def error_handler(error):
         msg = "Request resulted in {}".format(name)
         current_app.logger.error(msg, exc_info=error)
 
-    myvars = {}
-    myvars["heading"] = name + " (" + unicode(code) + ")"
-    myvars["message"] = description
+    heading = name + " (" + unicode(code) + ")"
+    message = description
 
     templates_to_try = ['{}.html'.format(code), 'generic.html']
-    return render_template(templates_to_try, myvars=myvars), code
+    return render_template(templates_to_try, context={'heading': heading, 'message': message}), code
 
 
 def init_app(app):

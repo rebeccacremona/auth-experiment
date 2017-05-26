@@ -1,3 +1,4 @@
+from static_site_helpers import proxy_static_site
 
 def proxy_request(request, path):
     '''
@@ -26,4 +27,4 @@ def proxy_request(request, path):
         You can use flask.make_response to help construct complex responses:
         http://flask.pocoo.org/docs/0.12/api/#flask.Flask.make_response
     '''
-    pass
+    return proxy_static_site(path)

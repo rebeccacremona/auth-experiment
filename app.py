@@ -76,7 +76,7 @@ def is_safe_url(target):
 def catch_all(path):
     '''
         All requests are caught by this route, unless explicitly caught by
-        other patterns, more specific patterns.
+        other more specific patterns.
         http://flask.pocoo.org/docs/0.12/design/#the-routing-system
     '''
     def fallback():
@@ -88,7 +88,7 @@ def catch_all(path):
         if proxied_response:
             return proxied_response
         else:
-            app.logger.warning("No response returned by proxy.")
+            app.logger.warning("No response returned by proxied endpoint.")
             return fallback()
     except NameError:
         app.logger.warning("No proxy function available.")

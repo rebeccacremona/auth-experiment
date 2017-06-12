@@ -1,4 +1,5 @@
 from os import environ
+from ast import literal_eval
 import requests
 from functools import wraps
 from urlparse import urlparse, urljoin
@@ -15,7 +16,7 @@ app.config['GITHUB_CLIENT_ID'] = environ.get('GITHUB_CLIENT_ID')
 app.config['GITHUB_CLIENT_SECRET'] = environ.get('GITHUB_CLIENT_SECRET')
 app.config['GITHUB_ORG_NAME'] = environ.get('GITHUB_ORG_NAME')
 app.config['SECRET_KEY'] = environ.get('FLASK_SECRET_KEY')
-app.config['SESSION_COOKIE_SECURE'] = environ.get('SESSION_COOKIE_SECURE', True)
+app.config['SESSION_COOKIE_SECURE'] = literal_eval(environ.get('SESSION_COOKIE_SECURE', 'True'))
 app.config['LOGIN_EXPIRY_MINUTES'] = environ.get('LOGIN_EXPIRY', 30)
 app.config['LOG_LEVEL'] = environ.get('LOG_LEVEL', 'WARNING')
 
